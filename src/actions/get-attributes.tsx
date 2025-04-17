@@ -1,27 +1,21 @@
-// @/actions/get-attributes.tsx
-import { apiConfig, getApiBaseUrl, handleApiError } from "@/lib/api-helpers";
 import { ProductAttribute } from "@/types";
 import axios from "axios";
 
-const getAttributes = async (): Promise<ProductAttribute[]> => {
-  // Rota mantida como /shop/attributes
-  const API_URL = `${getApiBaseUrl()}/shop/attributes`;
+const URL = `${process.env.NEXT_PUBLIC_API_URL}/shop/attributes`;
 
+async function getAttributes(): Promise<ProductAttribute[]> {
   try {
-    const response = await axios.get<ProductAttribute[]>(API_URL, apiConfig);
-
-    if (!Array.isArray(response.data)) {
-      throw {
-        message: "Invalid attributes data format",
-        status: 500,
-        data: response.data,
-      };
-    }
+    const response = await axios.get(URL, {
+      headers: {
+        Authorization: `Bearer ${process.env.API_TOKEN}`,
+      },
+    });
 
     return response.data;
   } catch (error) {
-    return handleApiError(error, "attributes") || [];
+    console.error("Error fetching attributes:", error);
+    throw error;
   }
-};
+}
 
 export default getAttributes;

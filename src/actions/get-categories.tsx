@@ -1,4 +1,3 @@
-// @/actions/get-categories.ts
 import { ProductCategory } from "@/types";
 import axios from "axios";
 
@@ -11,10 +10,6 @@ async function getCategories(): Promise<ProductCategory[]> {
         Authorization: `Bearer ${process.env.API_TOKEN}`,
       },
     });
-
-    if (response.status === 404) {
-      throw new Error("Categories not found");
-    }
 
     return response.data;
   } catch (error) {

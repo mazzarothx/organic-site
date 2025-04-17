@@ -1,6 +1,6 @@
-import { getProduct } from "@/actions/get-product";
+import getProduct from "@/actions/get-product";
 import { notFound } from "next/navigation";
-import { ProductDetails } from "./_components/product-details";
+import ProductPageClient from "./_components/product-client";
 
 interface ProductPageProps {
   params: {
@@ -17,7 +17,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <ProductDetails product={product} />
+      <ProductPageClient />
     </div>
   );
 }
