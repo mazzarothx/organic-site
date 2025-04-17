@@ -1,13 +1,19 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { zodResolver } from "@hookform/resolvers/zod";
+import axios from "axios";
+import Image from "next/legacy/image";
 import { useRouter } from "next/navigation";
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { BsFillPatchCheckFill } from "react-icons/bs";
+import { FaStar } from "react-icons/fa";
+import { FaClock as FaClockAlt } from "react-icons/fa6";
 import { TbShieldCheckFilled } from "react-icons/tb";
+import { toast } from "sonner";
+import * as z from "zod";
 
-import { useCurrentUser } from "@/app/(auth)/hooks/use-current-user";
+// Components
 import { FloatingInput } from "@/components/input-floating";
 import { IoBreadcrumb } from "@/components/io-breadcrumb";
 import {
@@ -20,6 +26,7 @@ import {
   type CarouselApi,
 } from "@/components/io-carousel";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -28,30 +35,26 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// Hooks & Utilities
+import { useCurrentUser } from "@/app/(auth)/hooks/use-current-user";
 import useCart from "@/hooks/use-cart";
 import {
   CartProduct,
   Product,
   ProductAttribute,
-  ProductImages,
-  ProductProperties,
   ProductSubAttribute,
   ProductVariation,
 } from "@/types";
-import { zodResolver } from "@hookform/resolvers/zod";
-import axios from "axios";
-import Image from "next/legacy/image";
-import { useForm } from "react-hook-form";
-import { FaStar } from "react-icons/fa";
-import { FaClock } from "react-icons/fa6";
-import { toast } from "sonner";
-import * as z from "zod";
+
+// Local Components
 import AttributeBuild from "./ui/attribute-build";
 import Currency from "./ui/currency";
 import Quantity from "./ui/quantity";
 
 const emailSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email({ message: "Por favor, insira um e-mail válido" }),
 });
 
 type EmailFormValues = z.infer<typeof emailSchema>;
@@ -69,67 +72,76 @@ const ProductPageClient = ({
 }: ProductClientProps) => {
   const router = useRouter();
   const cart = useCart();
-
-  const images = initialData.images as ProductImages;
-  const variations = initialData.variations as ProductVariation[];
-  const properties = initialData.properties as ProductProperties;
-
   const user = useCurrentUser();
 
+  // Data extraction with fallbacks
+  const images = initialData.images ?? { gallery: [] };
+  const variations = initialData.variations ?? [];
+  const properties = initialData.properties ?? {
+    minQuantity: 1,
+    multiQuantity: 1,
+  };
+
+  // State management
   const [loading, setLoading] = useState(false);
   const [currentQuantity, setCurrentQuantity] = useState(1);
-  const [api, setApi] = useState<CarouselApi>();
-  const [current, setCurrent] = React.useState(1);
-  const [count, setCount] = React.useState(images?.gallery?.length || 0);
+  const [carouselApi, setCarouselApi] = useState<CarouselApi>();
+  const [currentSlide, setCurrentSlide] = useState(1);
+  const [slideCount, setSlideCount] = useState(images.gallery?.length || 0);
   const [selectedSubAttributes, setSelectedSubAttributes] = useState<
     { name: string; value: string }[]
   >([]);
   const [filteredVariations, setFilteredVariations] = useState(variations);
   const [currentVariation, setCurrentVariation] =
-    useState<ProductVariation | null>(null);
+    useState<ProductVariation | null>(
+      variations.length === 1 ? variations[0] : null,
+    );
 
+  // Form initialization
   const emailForm = useForm<EmailFormValues>({
     resolver: zodResolver(emailSchema),
-    defaultValues: {},
+    defaultValues: { email: user?.email ?? "" },
   });
 
+  // Carousel controls
   useEffect(() => {
-    if (!api) return;
+    if (!carouselApi) return;
 
-    const onSelect = () => {
-      setCurrent(api.selectedScrollSnap() + 1);
+    const updateCarouselState = () => {
+      setCurrentSlide(carouselApi.selectedScrollSnap() + 1);
+      setSlideCount(carouselApi.scrollSnapList().length);
     };
 
-    api.on("select", onSelect);
-    setCount(api.scrollSnapList().length);
-    setCurrent(api.selectedScrollSnap() + 1);
+    carouselApi.on("select", updateCarouselState);
+    updateCarouselState();
 
     return () => {
-      api.off("select", onSelect);
+      carouselApi.off("select", updateCarouselState);
     };
-  }, [api]);
+  }, [carouselApi]);
 
   const scrollToImage = useCallback(
     (assetId: string) => {
-      if (!api || !images?.gallery) return;
+      if (!carouselApi || !images.gallery) return;
 
       const index = images.gallery.findIndex(
         (image) => image.assetId === assetId,
       );
       if (index !== -1) {
-        api.scrollTo(index);
+        carouselApi.scrollTo(index);
       }
     },
-    [api, images?.gallery],
+    [carouselApi, images.gallery],
   );
 
+  // Cart functions
   const handleAddToCart = () => {
     if (!initialData || !currentVariation) {
       toast.error("Por favor, selecione uma variação válida do produto.");
       return;
     }
 
-    const newCartProduct: CartProduct = {
+    const cartProduct: CartProduct = {
       id: currentVariation.id,
       slug: initialData.slug,
       productId: initialData.id,
@@ -140,7 +152,8 @@ const ProductPageClient = ({
         )
         .join(" | "),
       name: initialData.name,
-      image: currentVariation.imageRef?.secureUrl || images.cover.secureUrl,
+      image:
+        currentVariation.imageRef?.secureUrl || images.cover?.secureUrl || "",
       price: currentVariation.salePrice,
       quantity: currentQuantity,
       availableQuantity: currentVariation.quantity,
@@ -148,40 +161,37 @@ const ProductPageClient = ({
       multiQuantity: properties.multiQuantity,
     };
 
-    cart.addItem(newCartProduct);
+    cart.addItem(cartProduct);
     toast.success("Produto adicionado ao carrinho!");
   };
 
-  const handleQuantityIncrement = () => {
-    if (currentVariation && currentQuantity < currentVariation.quantity) {
-      setCurrentQuantity((prev) => prev + 1);
-    }
+  const handleQuantityChange = (type: "increment" | "decrement") => {
+    setCurrentQuantity((prev) => {
+      if (type === "increment") {
+        return currentVariation && prev < currentVariation.quantity
+          ? prev + 1
+          : prev;
+      } else {
+        return prev > 1 ? prev - 1 : prev;
+      }
+    });
   };
 
-  const handleQuantityDecrement = () => {
-    if (currentQuantity > 1) {
-      setCurrentQuantity((prev) => prev - 1);
-    }
-  };
-
+  // Attribute selection
   const handleSelectChange = (name: string, value: string) => {
     setSelectedSubAttributes((prev) => {
-      // Encontra o atributo que está sendo modificado
       const attribute = attributes.find((attr) => attr.name === name);
-
-      // Remove todas as seleções do mesmo atributo
       const filtered = prev.filter((item) => {
         const itemAttribute = attributes.find(
           (attr) => attr.name === item.name,
         );
         return itemAttribute?.id !== attribute?.id;
       });
-
-      // Adiciona a nova seleção se o valor não for vazio
       return value ? [...filtered, { name, value }] : filtered;
     });
   };
 
+  // Restock notification
   const onEmailSubmit = async (data: EmailFormValues) => {
     if (!initialData || !currentVariation) return;
 
@@ -199,10 +209,14 @@ const ProductPageClient = ({
             )
             .join(" | "),
           price: currentVariation.salePrice,
-          image: currentVariation.imageRef?.secureUrl || images.cover.secureUrl,
+          image:
+            currentVariation.imageRef?.secureUrl ||
+            images.cover?.secureUrl ||
+            "",
         },
       });
       toast.success("Avisaremos quando o produto estiver disponível!");
+      emailForm.reset();
     } catch (error) {
       toast.error("Ocorreu um erro. Por favor, tente novamente.");
     } finally {
@@ -210,65 +224,68 @@ const ProductPageClient = ({
     }
   };
 
+  // Variation filtering
   useEffect(() => {
     if (!selectedSubAttributes.length) {
       setFilteredVariations(variations);
-      setCurrentVariation(null);
+      setCurrentVariation(variations.length === 1 ? variations[0] : null);
       return;
     }
 
-    // Filtra variações baseadas nos atributos selecionados
-    const newFilteredVariations = variations.filter((variation) => {
-      return selectedSubAttributes.every((selected) => {
-        // Verifica se a variação contém o subatributo selecionado
-        return variation.attributes.some((attr) =>
+    const filtered = variations.filter((variation) =>
+      selectedSubAttributes.every((selected) =>
+        variation.attributes.some((attr) =>
           attr.subAttributes.some(
             (subAttr) => subAttr.subAttributeId === selected.value,
           ),
-        );
-      });
-    });
+        ),
+      ),
+    );
 
-    setFilteredVariations(newFilteredVariations);
+    setFilteredVariations(filtered);
+    setCurrentVariation(filtered.length === 1 ? filtered[0] : null);
 
-    // Se apenas uma variação corresponde, seleciona ela automaticamente
-    if (newFilteredVariations.length === 1) {
-      setCurrentVariation(newFilteredVariations[0]);
-      if (newFilteredVariations[0].imageRef?.assetId) {
-        scrollToImage(newFilteredVariations[0].imageRef.assetId);
-      }
-    } else {
-      setCurrentVariation(null);
+    if (filtered.length === 1 && filtered[0].imageRef?.assetId) {
+      scrollToImage(filtered[0].imageRef.assetId);
     }
   }, [selectedSubAttributes, variations, scrollToImage]);
 
+  // Early returns
   if (!initialData) return null;
-  if (!images?.gallery) return null;
+  if (!images.gallery || images.gallery.length === 0) return null;
+
+  // Price display logic
+  const displayPrice = currentVariation?.salePrice ?? variations[0]?.salePrice;
+  const originalPrice = currentVariation?.price ?? variations[0]?.price;
+  const hasDiscount = originalPrice !== displayPrice;
 
   return (
     <div className="flex justify-center">
       <div className="mt-32 flex max-w-[1200px] flex-col gap-6">
+        {/* Breadcrumb */}
         <div className="w-full">
-          <IoBreadcrumb title={`Produtos`} src="/shop/products" />
+          <IoBreadcrumb title="Produtos" src="/shop/products" />
         </div>
 
-        <div className="flex gap-8">
-          {/* Galeria de Imagens */}
+        {/* Product Content */}
+        <div className="flex flex-col gap-8 md:flex-row">
+          {/* Image Gallery */}
           <div className="flex flex-col items-center">
             <div className="relative max-w-[630px]">
               <Carousel
-                setApi={setApi}
+                setApi={setCarouselApi}
                 className="bg-foreground/10 rounded-3xl"
               >
                 <CarouselContent>
                   {images.gallery.map((image, index) => (
-                    <CarouselItem key={index}>
+                    <CarouselItem key={image.assetId}>
                       <Image
                         src={image.secureUrl}
                         width={630}
                         height={630}
-                        alt={`Imagem ${index + 1}`}
+                        alt={`${initialData.name} - Imagem ${index + 1}`}
                         className="rounded-lg"
+                        priority={index === 0}
                       />
                     </CarouselItem>
                   ))}
@@ -279,7 +296,7 @@ const ProductPageClient = ({
                     className="left-1 size-8 rounded-lg"
                   />
                   <span className="text-sm">
-                    {current}/{count}
+                    {currentSlide}/{slideCount}
                   </span>
                   <CarouselNext
                     variant="ghost"
@@ -289,27 +306,26 @@ const ProductPageClient = ({
               </Carousel>
             </div>
 
-            {/* Miniaturas */}
+            {/* Thumbnails */}
             <div className="relative max-w-[500px] overflow-hidden">
               <CarouselThumbs
                 images={images.gallery}
-                currentIndex={current - 1}
-                onThumbClick={(index) => api?.scrollTo(index)}
+                currentIndex={currentSlide - 1}
+                onThumbClick={(index) => carouselApi?.scrollTo(index)}
               />
             </div>
           </div>
 
-          {/* Detalhes do Produto */}
+          {/* Product Details */}
           <div className="flex w-full max-w-[500px] flex-col gap-4 p-8">
-            <div>
-              <Badge className="bg-dash-gray-800 text-dash-text-primary">
-                NOVO
-              </Badge>
-            </div>
+            <Badge className="bg-dash-gray-800 text-dash-text-primary w-fit">
+              NOVO
+            </Badge>
 
             <p className="text-dash-primary text-xs font-bold">EM ESTOQUE</p>
             <h1 className="text-xl font-bold">{initialData.name}</h1>
 
+            {/* Rating */}
             <div className="flex items-center">
               <div className="flex">
                 {[1, 2, 3, 4].map((star) => (
@@ -322,76 +338,26 @@ const ProductPageClient = ({
               </span>
             </div>
 
+            {/* Price and Description */}
             <div className="flex flex-col gap-6">
-              {currentVariation && currentVariation.quantity === 0 ? (
-                <div>
-                  <p className="text-dash-error text-xl font-bold">
-                    Produto esgotado
-                  </p>
-                  <Form {...emailForm}>
-                    <form onSubmit={emailForm.handleSubmit(onEmailSubmit)}>
-                      <div className="flex gap-4">
-                        <FormField
-                          control={emailForm.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <FloatingInput
-                                  disabled={loading}
-                                  placeholder="Seu e-mail"
-                                  className="h-10 flex-grow"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button className="h-10 w-24" disabled={loading}>
-                          {loading ? "Enviando..." : "Avise-me"}
-                        </Button>
-                      </div>
-                    </form>
-                  </Form>
-                  <p className="text-dash-text-secondary text-sm">
-                    Avise-me quando este produto estiver disponível novamente.
-                  </p>
-                </div>
+              {currentVariation?.quantity === 0 ? (
+                <OutOfStockSection
+                  emailForm={emailForm}
+                  loading={loading}
+                  onSubmit={onEmailSubmit}
+                />
               ) : (
                 <>
-                  {/* Preço */}
-                  <div className="flex">
-                    {currentVariation?.price !== currentVariation?.salePrice ? (
-                      <>
-                        <div className="text-dash-text-disabled mr-2 text-xl font-bold line-through">
-                          <Currency
-                            value={
-                              currentVariation?.price || variations[0].price
-                            }
-                          />
-                        </div>
-                        <div className="text-xl font-bold">
-                          <Currency
-                            value={
-                              currentVariation?.salePrice ||
-                              variations[0].salePrice
-                            }
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-xl font-bold">
-                        <Currency
-                          value={
-                            currentVariation?.salePrice ||
-                            variations[0].salePrice
-                          }
-                        />
-                      </div>
+                  <div className="flex items-center gap-2">
+                    {hasDiscount && (
+                      <span className="text-dash-text-disabled text-xl font-bold line-through">
+                        <Currency value={originalPrice} />
+                      </span>
                     )}
+                    <span className="text-xl font-bold">
+                      <Currency value={displayPrice} />
+                    </span>
                   </div>
-
                   <p className="text-dash-text-secondary text-sm">
                     {initialData.description}
                   </p>
@@ -401,7 +367,7 @@ const ProductPageClient = ({
 
             <Separator className="border border-dashed bg-transparent" />
 
-            {/* Atributos */}
+            {/* Attributes */}
             <div className="mt-4 flex flex-col gap-7">
               {attributes.map((attribute) => (
                 <AttributeBuild
@@ -416,8 +382,8 @@ const ProductPageClient = ({
 
               <Quantity
                 quantity={currentQuantity}
-                onIncrement={handleQuantityIncrement}
-                onDecrement={handleQuantityDecrement}
+                onIncrement={() => handleQuantityChange("increment")}
+                onDecrement={() => handleQuantityChange("decrement")}
                 availableQuantity={currentVariation?.quantity || 0}
                 minQuantity={properties.minQuantity}
                 multiQuantity={properties.multiQuantity}
@@ -426,48 +392,25 @@ const ProductPageClient = ({
 
             <Separator className="border border-dashed bg-transparent" />
 
+            {/* Add to Cart */}
             <div className="mt-6 flex space-x-4">
-              <Button onClick={handleAddToCart} disabled={!currentVariation}>
+              <Button
+                onClick={handleAddToCart}
+                disabled={!currentVariation || currentVariation.quantity === 0}
+                className="w-full"
+              >
                 Adicionar ao Carrinho
               </Button>
             </div>
           </div>
         </div>
 
-        {/* Destaques */}
-        <div className="mt-6 grid grid-cols-3 gap-24 px-24">
-          <div className="flex flex-col items-center gap-4">
-            <BsFillPatchCheckFill className="text-dash-primary h-6 w-6" />
-            <div className="flex flex-col items-center gap-1">
-              <p className="font-semibold">100% original</p>
-              <p className="text-dash-text-secondary text-center text-sm">
-                Produtos de qualidade garantida.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col items-center gap-4">
-            <FaClock className="text-dash-primary h-6 w-6" />
-            <div className="flex flex-col items-center gap-1">
-              <p className="font-semibold">10 dias para troca</p>
-              <p className="text-dash-text-secondary text-center text-sm">
-                Trocas fáceis e rápidas.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col items-center gap-4">
-            <TbShieldCheckFilled className="text-dash-primary h-6 w-6" />
-            <div className="flex flex-col items-center gap-1">
-              <p className="font-semibold">Garantia de 1 ano</p>
-              <p className="text-dash-text-secondary text-center text-sm">
-                Garantia contra defeitos.
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* Highlights */}
+        <ProductHighlights />
 
-        {/* Conteúdo */}
+        {/* Tabs */}
         <div className="w-full">
-          <Tabs defaultValue="description" className="w-full">
+          <Tabs defaultValue="description">
             <TabsList className="mb-10">
               <TabsTrigger value="description">Descrição</TabsTrigger>
               <TabsTrigger value="reviews">Avaliações</TabsTrigger>
@@ -484,5 +427,81 @@ const ProductPageClient = ({
     </div>
   );
 };
+
+// Extracted Components
+const OutOfStockSection = ({
+  emailForm,
+  loading,
+  onSubmit,
+}: {
+  emailForm: ReturnType<typeof useForm<EmailFormValues>>;
+  loading: boolean;
+  onSubmit: (data: EmailFormValues) => Promise<void>;
+}) => (
+  <div>
+    <p className="text-dash-error text-xl font-bold">Produto esgotado</p>
+    <Form {...emailForm}>
+      <form onSubmit={emailForm.handleSubmit(onSubmit)}>
+        <div className="flex gap-4">
+          <FormField
+            control={emailForm.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem className="flex-grow">
+                <FormControl>
+                  <FloatingInput
+                    disabled={loading}
+                    placeholder="Seu e-mail"
+                    className="h-10"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button className="h-10 w-24" disabled={loading}>
+            {loading ? "Enviando..." : "Avise-me"}
+          </Button>
+        </div>
+      </form>
+    </Form>
+    <p className="text-dash-text-secondary mt-2 text-sm">
+      Avise-me quando este produto estiver disponível novamente.
+    </p>
+  </div>
+);
+
+const ProductHighlights = () => (
+  <div className="mt-6 grid grid-cols-1 gap-8 sm:grid-cols-3 sm:gap-24 sm:px-24">
+    {[
+      {
+        icon: <BsFillPatchCheckFill className="text-dash-primary h-6 w-6" />,
+        title: "100% original",
+        description: "Produtos de qualidade garantida.",
+      },
+      {
+        icon: <FaClockAlt className="text-dash-primary h-6 w-6" />,
+        title: "10 dias para troca",
+        description: "Trocas fáceis e rápidas.",
+      },
+      {
+        icon: <TbShieldCheckFilled className="text-dash-primary h-6 w-6" />,
+        title: "Garantia de 1 ano",
+        description: "Garantia contra defeitos.",
+      },
+    ].map((item, index) => (
+      <div key={index} className="flex flex-col items-center gap-4">
+        {item.icon}
+        <div className="flex flex-col items-center gap-1">
+          <p className="font-semibold">{item.title}</p>
+          <p className="text-dash-text-secondary text-center text-sm">
+            {item.description}
+          </p>
+        </div>
+      </div>
+    ))}
+  </div>
+);
 
 export default ProductPageClient;

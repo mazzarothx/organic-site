@@ -33,166 +33,159 @@ const AttributeBuild = ({
   variations,
   selectedSubAttributes,
 }: AttributeBuildProps) => {
-  // Filtra os subatributos pertencentes a este atributo
+  // Filtra os subatributos deste atributo específico
   const filteredSubAttributes = subAttributes.filter(
     (sub) => sub.productAttributeId === attribute.id,
   );
 
-  // Verifica se um subatributo está disponível nas variações ativas
-  const isSubAttributeAvailable = (subAttributeId: string) => {
-    // Se não há seleções, verifica se existe alguma variação com este subatributo
-    if (selectedSubAttributes.length === 0) {
-      return variations.some((variation) =>
-        variation.attributes.some((attr) =>
-          attr.subAttributes.some(
-            (sub) =>
-              sub.subAttributeId === subAttributeId && variation.quantity > 0,
-          ),
-        ),
-      );
-    }
+  // Encontra o valor atualmente selecionado para este atributo
+  const selectedValue = selectedSubAttributes.find(
+    (sub) => sub.name === attribute.name,
+  )?.value;
 
-    // Verifica combinações com os subatributos já selecionados
+  /**
+   * Verifica se um subatributo está disponível considerando:
+   * 1. Se já está selecionado (sempre disponível para deseleção)
+   * 2. Se existe em variações com estoque
+   * 3. Se combina com outros atributos selecionados
+   */
+  const isSubAttributeAvailable = (subAttributeId: string): boolean => {
+    // Se já está selecionado, está disponível para permitir troca
+    if (selectedValue === subAttributeId) return true;
+
+    // Filtra outros atributos selecionados (excluindo o atual)
+    const otherSelections = selectedSubAttributes.filter(
+      (sub) => sub.name !== attribute.name,
+    );
+
+    // Verifica se existe alguma variação que:
+    // 1. Tenha estoque > 0
+    // 2. Contenha o subatributo que estamos verificando
+    // 3. Contenha todos os outros subatributos selecionados (se houver)
     return variations.some((variation) => {
-      // Verifica se todos os subatributos selecionados estão presentes
-      const hasAllSelected = selectedSubAttributes.every((selected) =>
+      // Precisa ter estoque
+      if (variation.quantity <= 0) return false;
+
+      // Precisa conter o subatributo que estamos verificando
+      const hasCurrentSubAttr = variation.attributes.some((attr) =>
+        attr.subAttributes.some((sub) => sub.subAttributeId === subAttributeId),
+      );
+      if (!hasCurrentSubAttr) return false;
+
+      // Se não há outras seleções, já é válido
+      if (otherSelections.length === 0) return true;
+
+      // Precisa conter todos os outros subatributos selecionados
+      return otherSelections.every((selected) =>
         variation.attributes.some((attr) =>
           attr.subAttributes.some(
             (sub) => sub.subAttributeId === selected.value,
           ),
         ),
       );
-
-      // Verifica se a variação contém o subatributo que estamos verificando
-      const hasCurrentSubAttr = variation.attributes.some((attr) =>
-        attr.subAttributes.some((sub) => sub.subAttributeId === subAttributeId),
-      );
-
-      // Verifica se tem estoque
-      const hasStock = variation.quantity > 0;
-
-      return hasAllSelected && hasCurrentSubAttr && hasStock;
     });
   };
 
-  // Obtém subatributos disponíveis para este atributo
-  const availableSubAttributes = filteredSubAttributes.filter((sub) =>
-    isSubAttributeAvailable(sub.id),
-  );
+  const handleValueChange = (value: string) => {
+    onChange(attribute.name, value);
+  };
 
-  // Obtém o valor selecionado para este atributo (se houver)
-  const selectedValue = selectedSubAttributes.find(
-    (sub) => sub.name === attribute.name,
-  )?.value;
+  // Renderização condicional baseada no tipo de atributo
+  switch (attribute.productPageType) {
+    case "COLOR":
+      return (
+        <div className="mb-4">
+          <div className="flex flex-row items-start justify-between">
+            <h3 className="text-sm font-semibold">{attribute.name}</h3>
 
-  // Determina se deve mostrar como indisponível
-  const isAttributeUnavailable = availableSubAttributes.length === 0;
+            <TooltipProvider>
+              <RadioGroup
+                value={selectedValue || ""}
+                onValueChange={handleValueChange}
+                className="flex flex-row gap-3"
+              >
+                {filteredSubAttributes.map((sub) => {
+                  const available = isSubAttributeAvailable(sub.id);
+                  return (
+                    <Tooltip key={sub.id}>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <RadioGroupItem
+                            value={sub.id}
+                            id={sub.id}
+                            disabled={!available}
+                            className={`h-6 w-6 border-none ${
+                              !available
+                                ? "cursor-not-allowed opacity-30"
+                                : "hover:ring-primary hover:ring-2"
+                            } ${
+                              selectedValue === sub.id
+                                ? "ring-primary ring-2"
+                                : ""
+                            }`}
+                            style={{
+                              backgroundColor: sub.value.startsWith("#")
+                                ? sub.value
+                                : "transparent",
+                              backgroundImage: !sub.value.startsWith("#")
+                                ? `url(${sub.value})`
+                                : undefined,
+                            }}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{sub.name}</p>
+                        {!available && (
+                          <p className="text-xs text-red-500">Indisponível</p>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </RadioGroup>
+            </TooltipProvider>
+          </div>
+        </div>
+      );
 
-  return (
-    <div className="mb-4">
-      <div className="flex flex-row items-start justify-between">
-        <h3 className="text-sm font-semibold">
-          {attribute.name}
-          {isAttributeUnavailable && (
-            <span className="ml-2 text-xs text-red-500">(Indisponível)</span>
-          )}
-        </h3>
+    case "SELECT":
+    default:
+      return (
+        <div className="mb-4">
+          <div className="flex flex-row items-start justify-between">
+            <h3 className="text-sm font-semibold">{attribute.name}</h3>
 
-        {attribute.productPageType === "SELECT" && (
-          <Select
-            value={selectedValue}
-            onValueChange={(value) => onChange(attribute.name, value)}
-            disabled={isAttributeUnavailable}
-          >
-            <SelectTrigger className="h-10 w-36">
-              <SelectValue placeholder={`Selecione ${attribute.name}`} />
-            </SelectTrigger>
-            <SelectContent>
-              {filteredSubAttributes.map((sub) => (
-                <SelectItem
-                  key={sub.id}
-                  value={sub.id}
-                  disabled={!isSubAttributeAvailable(sub.id)}
-                >
-                  <div className="flex items-center gap-2">
-                    {sub.name}
-                    {!isSubAttributeAvailable(sub.id) && (
-                      <span className="text-muted-foreground text-xs">
-                        (Indisponível)
-                      </span>
-                    )}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        {attribute.productPageType === "COLOR" && (
-          <TooltipProvider>
-            <RadioGroup
-              value={selectedValue}
-              onValueChange={(value) => onChange(attribute.name, value)}
-              className="flex flex-row gap-3"
-              disabled={isAttributeUnavailable}
-            >
-              {filteredSubAttributes.map((sub) => (
-                <Tooltip key={sub.id}>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <RadioGroupItem
-                        value={sub.id}
-                        id={sub.id}
-                        disabled={!isSubAttributeAvailable(sub.id)}
-                        className={`h-6 w-6 border-none ${!isSubAttributeAvailable(sub.id) ? "opacity-30" : "hover:ring-primary hover:ring-2"}`}
-                        style={{
-                          backgroundColor: sub.value.startsWith("#")
-                            ? sub.value
-                            : undefined,
-                        }}
-                      />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{sub.name}</p>
-                    {!isSubAttributeAvailable(sub.id) && (
-                      <p className="text-xs text-red-500">Indisponível</p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </RadioGroup>
-          </TooltipProvider>
-        )}
-
-        {attribute.productPageType === "RATIO" && (
-          <RadioGroup
-            value={selectedValue}
-            onValueChange={(value) => onChange(attribute.name, value)}
-            className="flex flex-row gap-3"
-            disabled={isAttributeUnavailable}
-          >
-            {filteredSubAttributes.map((sub) => (
-              <div key={sub.id} className="flex items-center space-x-2">
-                <RadioGroupItem
-                  value={sub.id}
-                  id={sub.id}
-                  disabled={!isSubAttributeAvailable(sub.id)}
-                  className={`${!isSubAttributeAvailable(sub.id) ? "opacity-50" : ""}`}
-                />
-                <label
-                  htmlFor={sub.id}
-                  className={`text-sm ${!isSubAttributeAvailable(sub.id) ? "opacity-50" : ""}`}
-                >
-                  {sub.name}
-                </label>
-              </div>
-            ))}
-          </RadioGroup>
-        )}
-      </div>
-    </div>
-  );
+            <Select value={selectedValue} onValueChange={handleValueChange}>
+              <SelectTrigger className="h-10 w-36">
+                <SelectValue placeholder={`Selecione ${attribute.name}`} />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredSubAttributes.map((sub) => {
+                  const available = isSubAttributeAvailable(sub.id);
+                  return (
+                    <SelectItem
+                      key={sub.id}
+                      value={sub.id}
+                      disabled={!available}
+                    >
+                      <div className="flex items-center gap-2">
+                        {sub.name}
+                        {!available && (
+                          <span className="text-muted-foreground text-xs">
+                            (Indisponível)
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      );
+  }
 };
 
 export default AttributeBuild;

@@ -34,31 +34,35 @@ const ProductFilterClient: React.FC<ProductFilterClientProps> = ({
   const [selectedSubAttributes, setSelectedSubAttributes] = useState<
     { attributeId: string; subAttributeId: string }[]
   >([]);
+  const [products] = useState<Product[]>(initialProducts);
 
   const filteredProducts = useMemo(() => {
-    let filtered = initialProducts;
+    return products.filter((product) => {
+      // Filter by category
+      if (selectedCategory && product.category?.id !== selectedCategory) {
+        return false;
+      }
 
-    if (selectedCategory) {
-      filtered = filtered.filter(
-        (product) => product.categoryId === selectedCategory,
-      );
-    }
+      // Filter by attributes
+      if (selectedSubAttributes.length > 0) {
+        const hasAllAttributes = selectedSubAttributes.every((selected) => {
+          return product.variations.some((variation) =>
+            variation.attributes.some(
+              (attr) =>
+                attr.attributeId === selected.attributeId &&
+                attr.subAttributes.some(
+                  (sub) => sub.subAttributeId === selected.subAttributeId,
+                ),
+            ),
+          );
+        });
 
-    if (selectedSubAttributes.length > 0) {
-      filtered = filtered.filter((product) => {
-        const productSubAttributes = product.variations
-          .flatMap((variation) => variation.subAttributes || [])
-          .map((subAttribute) => subAttribute?.subAttributeId)
-          .filter(Boolean);
+        if (!hasAllAttributes) return false;
+      }
 
-        return selectedSubAttributes.every((selectedSubAttr) =>
-          productSubAttributes.includes(selectedSubAttr.subAttributeId),
-        );
-      });
-    }
-
-    return filtered;
-  }, [selectedCategory, selectedSubAttributes, initialProducts]);
+      return true;
+    });
+  }, [products, selectedCategory, selectedSubAttributes]);
 
   const resetFilters = () => {
     setSelectedCategory(null);
@@ -70,19 +74,18 @@ const ProductFilterClient: React.FC<ProductFilterClientProps> = ({
     subAttributeId: string,
     isMultiSelect: boolean,
   ) => {
-    setSelectedSubAttributes((prevSelected) => {
-      const alreadySelected = prevSelected.find(
-        (sel) => sel.attributeId === attributeId,
-      );
-
+    setSelectedSubAttributes((prev) => {
       if (isMultiSelect) {
-        return alreadySelected
-          ? prevSelected.some((sel) => sel.subAttributeId === subAttributeId)
-            ? prevSelected.filter(
-                (sel) => sel.subAttributeId !== subAttributeId,
-              )
-            : [...prevSelected, { attributeId, subAttributeId }]
-          : [...prevSelected, { attributeId, subAttributeId }];
+        const existingIndex = prev.findIndex(
+          (item) =>
+            item.attributeId === attributeId &&
+            item.subAttributeId === subAttributeId,
+        );
+
+        if (existingIndex >= 0) {
+          return prev.filter((_, index) => index !== existingIndex);
+        }
+        return [...prev, { attributeId, subAttributeId }];
       } else {
         return [{ attributeId, subAttributeId }];
       }
@@ -90,56 +93,33 @@ const ProductFilterClient: React.FC<ProductFilterClientProps> = ({
   };
 
   const renderFilterForAttribute = (attribute: ProductAttribute) => {
-    const subAttributesFiltered = attribute.productSubAttributes;
+    const subAttributes = attribute.productSubAttributes || [];
 
     switch (attribute.filterPageType) {
-      case "DEFAULT":
-      case "SELECT":
-        return (
-          <Select
-            onValueChange={(value) =>
-              handleSubAttributeChange(attribute.id, value as string, false)
-            }
-          >
-            <SelectTrigger className="h-10 w-36">
-              <SelectValue placeholder={`Select ${attribute.name}`} />
-            </SelectTrigger>
-            <SelectContent>
-              {subAttributesFiltered.map((sub) => (
-                <SelectItem value={sub.id} id={sub.id} key={sub.id}>
-                  {sub.value}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        );
-
       case "COLOR":
         return (
           <TooltipProvider>
-            <div className="flex flex-row gap-2">
-              {subAttributesFiltered.map((sub) => (
+            <div className="flex flex-wrap gap-2">
+              {subAttributes.map((sub) => (
                 <Tooltip key={sub.id}>
                   <TooltipTrigger asChild>
-                    <div
+                    <button
+                      type="button"
                       onClick={() =>
                         handleSubAttributeChange(attribute.id, sub.id, true)
                       }
-                      className={`h-5 w-5 cursor-pointer border ${
+                      className={`h-6 w-6 rounded-full border-2 transition-all ${
                         selectedSubAttributes.some(
-                          (sel) => sel.subAttributeId === sub.id,
+                          (s) => s.subAttributeId === sub.id,
                         )
-                          ? "border-black"
-                          : ""
+                          ? "border-primary scale-110"
+                          : "border-transparent"
                       }`}
-                      style={{
-                        backgroundColor: sub.value.startsWith("#")
-                          ? sub.value
-                          : undefined,
-                      }}
+                      style={{ backgroundColor: sub.value }}
+                      aria-label={sub.name}
                     />
                   </TooltipTrigger>
-                  <TooltipContent>{sub.name}</TooltipContent>
+                  <TooltipContent side="bottom">{sub.name}</TooltipContent>
                 </Tooltip>
               ))}
             </div>
@@ -147,36 +127,70 @@ const ProductFilterClient: React.FC<ProductFilterClientProps> = ({
         );
 
       case "CHECKBOX":
-        return subAttributesFiltered.map((sub) => (
-          <label key={sub.id} className="flex items-center space-x-2 text-sm">
-            <input
-              type="checkbox"
-              value={sub.id}
-              checked={selectedSubAttributes.some(
-                (sel) => sel.subAttributeId === sub.id,
-              )}
-              onChange={() =>
-                handleSubAttributeChange(attribute.id, sub.id, true)
-              }
-              className="form-checkbox"
-            />
-            <span>{sub.value}</span>
-          </label>
-        ));
+        return (
+          <div className="space-y-2">
+            {subAttributes.map((sub) => (
+              <label key={sub.id} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedSubAttributes.some(
+                    (s) => s.subAttributeId === sub.id,
+                  )}
+                  onChange={() =>
+                    handleSubAttributeChange(attribute.id, sub.id, true)
+                  }
+                  className="text-primary focus:ring-primary h-4 w-4 rounded border-gray-300"
+                />
+                <span>{sub.value}</span>
+              </label>
+            ))}
+          </div>
+        );
+
+      case "SELECT":
+        return (
+          <Select
+            onValueChange={(value) =>
+              handleSubAttributeChange(attribute.id, value, false)
+            }
+            value={
+              selectedSubAttributes.find((s) => s.attributeId === attribute.id)
+                ?.subAttributeId || ""
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={`Select ${attribute.name}`} />
+            </SelectTrigger>
+            <SelectContent>
+              {subAttributes.map((sub) => (
+                <SelectItem key={sub.id} value={sub.id}>
+                  {sub.value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
 
       case "RATIO":
         return (
           <RadioGroup
+            value={
+              selectedSubAttributes.find((s) => s.attributeId === attribute.id)
+                ?.subAttributeId || ""
+            }
             onValueChange={(value) =>
-              handleSubAttributeChange(attribute.id, value as string, false)
+              handleSubAttributeChange(attribute.id, value, false)
             }
             className="space-y-2"
           >
-            {subAttributesFiltered.map((sub) => (
-              <label key={sub.id} className="flex items-center space-x-2">
-                <RadioGroupItem value={sub.id} id={sub.id} />
-                <span>{sub.value}</span>
-              </label>
+            {subAttributes.map((sub) => (
+              <div key={sub.id} className="flex items-center gap-2">
+                <RadioGroupItem
+                  value={sub.id}
+                  id={`${attribute.id}-${sub.id}`}
+                />
+                <label htmlFor={`${attribute.id}-${sub.id}`}>{sub.value}</label>
+              </div>
             ))}
           </RadioGroup>
         );
@@ -187,86 +201,84 @@ const ProductFilterClient: React.FC<ProductFilterClientProps> = ({
   };
 
   return (
-    <div className="flex h-full w-full flex-col items-center">
-      <div className="flex h-52 w-full items-center justify-center"></div>
-
-      <div className="flex h-full w-[1600px]">
-        <div className="flex h-full min-w-60 flex-col space-y-4 px-6">
-          <div className="flex h-16 w-full items-center justify-between space-x-2 border-b border-white/30">
-            <p className="text-lg font-bold">Filtros</p>
-            <RotateCcw
-              className="h-4 w-4 cursor-pointer"
+    <div className="container mx-auto py-8">
+      <div className="flex flex-col gap-8 lg:flex-row">
+        {/* Filters sidebar */}
+        <div className="w-full space-y-6 lg:w-1/4">
+          <div className="flex items-center justify-between border-b pb-4">
+            <h2 className="text-lg font-bold">Filters</h2>
+            <button
               onClick={resetFilters}
-            />
-          </div>
-          <div className="pb-6">
-            <h3 className="pb-3 text-sm font-semibold">Select Category</h3>
-            <RadioGroup
-              onValueChange={(value) => setSelectedCategory(value)}
-              value={selectedCategory || ""}
+              className="text-primary flex items-center gap-2 text-sm hover:underline"
             >
-              <label className="flex items-center space-x-2 text-sm">
-                <RadioGroupItem value="" />
-                <span>All Categories</span>
-              </label>
+              <RotateCcw className="h-4 w-4" />
+              Reset
+            </button>
+          </div>
+
+          {/* Category filter */}
+          <div className="space-y-3">
+            <h3 className="font-medium">Categories</h3>
+            <RadioGroup
+              value={selectedCategory || ""}
+              onValueChange={setSelectedCategory}
+              className="space-y-2"
+            >
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="" id="all-categories" />
+                <label htmlFor="all-categories">All Categories</label>
+              </div>
               {categories.map((category) => (
-                <label
-                  key={category.id}
-                  className="flex items-center space-x-2 text-sm"
-                >
-                  <RadioGroupItem value={category.id} />
-                  <span>{category.name}</span>
-                </label>
+                <div key={category.id} className="flex items-center gap-2">
+                  <RadioGroupItem
+                    value={category.id}
+                    id={`cat-${category.id}`}
+                  />
+                  <label htmlFor={`cat-${category.id}`}>{category.name}</label>
+                </div>
               ))}
             </RadioGroup>
           </div>
 
+          {/* Attributes filters */}
           {attributes.map((attribute) => (
-            <div key={attribute.id} className="pb-6">
-              <h3 className="pb-3 text-sm font-semibold">{attribute.name}</h3>
-              <div className="space-y-2">
-                {renderFilterForAttribute(attribute)}
-              </div>
+            <div key={attribute.id} className="space-y-3">
+              <h3 className="font-medium">{attribute.name}</h3>
+              {renderFilterForAttribute(attribute)}
             </div>
           ))}
         </div>
 
-        <div className="flex h-full w-full flex-col px-8">
-          <div className="flex items-center justify-between px-32">
-            <p>Filtros selecionados:</p>
-            <p>
-              {selectedSubAttributes
-                .map((sel) => {
-                  const attribute = attributes.find(
-                    (attr) => attr.id === sel.attributeId,
-                  );
-                  const subAttribute = attribute?.productSubAttributes.find(
-                    (sub) => sub.id === sel.subAttributeId,
-                  );
-                  return subAttribute
-                    ? `${attribute?.name}: ${subAttribute.value}`
-                    : "";
-                })
-                .filter(Boolean)
-                .join(", ") || "Nenhum"}
-            </p>
+        {/* Products grid */}
+        <div className="w-full lg:w-3/4">
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-xl font-bold">
+              {filteredProducts.length}{" "}
+              {filteredProducts.length === 1 ? "product" : "products"} found
+            </h2>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredProducts.length > 0 ? (
-              filteredProducts.map((product) => (
+          {filteredProducts.length > 0 ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              {filteredProducts.map((product) => (
                 <ProductCard
                   key={product.id}
                   product={product}
                   attributes={attributes}
                 />
-              ))
-            ) : (
-              <p className="col-span-full text-center text-lg font-semibold">
-                Nenhum produto encontrado com os filtros selecionados.
-              </p>
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12">
+              <p className="mb-4 text-lg font-medium">No products found</p>
+              <button
+                onClick={resetFilters}
+                className="text-primary hover:underline"
+              >
+                Clear all filters
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
