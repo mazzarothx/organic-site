@@ -1,4 +1,3 @@
-// @/types.ts
 // #region ---------------- USER ----------------
 
 export type User = {
@@ -25,111 +24,157 @@ export type User = {
 
 // #region ---------------- PRODUCT ----------------
 
-// Tipos básicos para imagens
-export type ProductImage = {
-  assetId: string;
-  secureUrl: string;
+export type Product = {
+  id: string;
+  slug: string;
+  name: string;
+
+  type: "VARIABLE" | "SIMPLE";
+  status: "PUBLISHED" | "ARCHIVED";
+  visibility: "PUBLIC" | "PRIVATE";
+  featured: boolean;
+
+  description: string | null;
+  content: string | null;
+  attributes: ProductAttributeAssignment[];
+
+  images: ProductImages;
+  variations: ProductVariation[];
+  shipping: Shipping;
+  properties: ProductProperties;
+  category: ProductCategory | null;
+  subcategory: ProductSubcategory | null;
+
+  createdAt: Date;
+  updatedAt: Date;
 };
 
-export type ProductImages = {
-  cover: ProductImage;
-  gallery: ProductImage[];
-  underCover?: ProductImage;
+export type ProductVariation = {
+  id: string;
+  price: number;
+  salePrice: number;
+  quantity: number;
+  attributes: ProductAttributeAssignment[];
+  imageRef: {
+    assetId: string;
+    secureUrl: string;
+  };
 };
 
-// Tipos para atributos e subatributos
-export type ProductSubAttribute = {
+export type ProductAttributeAssignment = {
+  id: string;
+  attributeId: string;
+  attributeName: string;
+  subAttributes: ProductSubAttributeAssignment[];
+};
+
+export type ProductSubAttributeAssignment = {
   id: string;
   subAttributeId: string;
   subAttributeName: string;
 };
 
-export type ProductAttribute = {
-  id: string;
+export type ProductAttributeCombination = {
   attributeId: string;
-  attributeName: string;
-  type: "COLOR" | "SELECT" | "RADIO" | "TEXT";
-  subAttributes: ProductSubAttribute[];
+  subAttributeId: string;
 };
 
-// Tipo para variações
-export type ProductVariant = {
-  price: number;
-  imageRef: ProductImage;
-  quantity: number;
-  salePrice?: number;
-  attributes: {
-    id: string;
-    attributeId: string;
-    attributeName: string;
-    subAttributes: ProductSubAttribute[];
+export type ProductImages = {
+  cover: {
+    assetId: string;
+    secureUrl: string;
+  };
+  underCover: {
+    assetId: string;
+    secureUrl: string;
+  };
+  gallery: {
+    assetId: string;
+    secureUrl: string;
   }[];
 };
 
-// Tipo para propriedades do produto
 export type ProductProperties = {
-  sku: string;
   code: string;
+  sku: string;
+  minQuantity: number;
+  multiQuantity: number;
   tags: string[];
   label: {
-    new: {
-      state: boolean;
-      value: string;
-    };
     sale: {
       state: boolean;
       value: string;
     };
+    new: {
+      state: boolean;
+      value: string;
+    };
   };
-  minQuantity: number;
-  multiQuantity: number;
 };
 
-// Tipo base do produto
-export type ProductBase = {
+export type ProductCategory = {
   id: string;
   slug: string;
   name: string;
-  type: "SIMPLE" | "VARIABLE";
-  status: "PUBLISHED" | "DRAFT";
-  visibility: "PUBLIC" | "PRIVATE";
-  featured: boolean;
-  description: string;
-  content: string;
-  images: ProductImages;
-  categoryId: string;
-  subcategoryId: string | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  shipping: Record<string, any>;
-  properties: ProductProperties;
-  createdAt: string;
-  updatedAt: string;
+  imageUrl: string | null;
+  description: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  subcategories: ProductSubcategory[];
 };
 
-// Tipo completo do produto com variações parseadas
-export type ProductWithDetails = ProductBase & {
-  attributes: ProductAttribute[] | null;
-  variations: ProductVariant[]; // Sempre um array, nunca string
+export type ProductSubcategory = {
+  id: string;
+  slug: string;
+  name: string;
+  imageUrl: string | null;
+  description: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  productCategoryId: string;
 };
 
-// Tipo para o produto retornado pela API (pode ter variações como string)
-export type ProductResponse = ProductBase & {
-  attributes: ProductAttribute[] | null;
-  variations: ProductVariant[] | string; // Pode vir como string JSON
+export type ProductAttribute = {
+  id: string;
+  name: string;
+  slug: string;
+  type: string;
+  productSubAttributes: ProductSubAttribute[];
+
+  productPageType: "DEFAULT" | "COLOR" | "SELECT" | "CHECKBOX" | "RATIO";
+  filterPageType: "DEFAULT" | "COLOR" | "SELECT" | "CHECKBOX" | "RATIO";
+
+  createdAt: Date;
+  updatedAt: Date;
 };
 
-// Tipo para seleção no frontend
-export type SelectedVariant = {
-  variant: ProductVariant;
-  compositeKey: string; // Formato: "attribute1:value1|attribute2:value2"
+export type ProductSubAttribute = {
+  id: string;
+  slug: string;
+  name: string;
+  value: string;
+  productAttributeId: string;
+
+  createdAt: Date;
+  updatedAt: Date;
 };
 
-// Tipo para o carrinho
-export type CartItem = {
-  product: ProductBase;
-  variant?: ProductVariant;
-  quantity: number;
-  compositeKey?: string;
+export type Shipping = {
+  weight: number;
+  length: number;
+  breadth: number;
+  height: number;
+};
+
+export type Review = {
+  id: string;
+  name: string;
+  image?: string;
+  platform: string;
+  rating: number;
+  comment: string;
+  link?: string;
+  date: Date;
 };
 
 // #endregion
@@ -416,6 +461,17 @@ export type PostCategory = {
   Post: Post[];
   createdAt: Date;
   updatedAt: Date;
+};
+
+// #endregion
+
+// #region ---------------- TOOLS -----------------------------------------------
+
+export type FormData = {
+  key: string;
+  title: string;
+  value: string;
+  label: string;
 };
 
 // #endregion
