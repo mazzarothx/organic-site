@@ -1,10 +1,10 @@
 // @/actions/get-products.ts
-import { Product } from "@/types";
+import { ProductBase } from "@/types";
 import axios from "axios";
 
 const URL = `${process.env.NEXT_PUBLIC_API_URL}/shop/products`;
 
-async function getProducts(): Promise<Product[]> {
+async function getProducts(): Promise<ProductBase[]> {
   try {
     const response = await axios.get(URL, {
       headers: {
