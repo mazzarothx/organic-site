@@ -3,7 +3,6 @@
 import { formatterBr } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import useCart from "@/hooks/use-cart";
 import axios from "axios";
 import { useEffect, useState } from "react";
 import { FaCheck, FaCircle } from "react-icons/fa";
@@ -13,6 +12,7 @@ import { FloatingInput } from "@/components/input-floating";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { useCart } from "@/hooks/use-cart";
 import {
   Address,
   CartDelivery,
@@ -53,7 +53,11 @@ export const CartClient = () => {
     }
 
     if (cart.items.length > 0) {
-      cart.validateCart();
+      const isValid = cart.validateCart();
+      if (!isValid) {
+        toast.error("Seu carrinho contém itens inválidos");
+        // Opcional: Limpar itens inválidos
+      }
     }
   }, []);
 

@@ -2,11 +2,11 @@
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import useCart from "@/hooks/use-cart";
 import { formatterBr } from "@/lib/utils";
 
 import { ShoppingCart } from "lucide-react";
 
+import { useCart } from "@/hooks/use-cart";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { LuTrash } from "react-icons/lu";

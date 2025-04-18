@@ -2,7 +2,7 @@
 
 import Counter from "@/components/card/counter";
 import { Button } from "@/components/ui/button";
-import useCart from "@/hooks/use-cart";
+import { useCart } from "@/hooks/use-cart";
 import { CartProduct, Product } from "@/types";
 import { Check, Loader, ShoppingCart } from "lucide-react";
 import Image from "next/image";
@@ -65,9 +65,12 @@ const CurrencyCard: React.FC<CurrencyCardProps> = ({ data }) => {
       id: data.id,
       slug: data.slug,
       productId: data.id,
-      variationId: data.variations[0].variationId,
-      subAttributes: data.variations[0].subAttributes
-        ? data.variations[0].subAttributes.map((sub) => sub.name).join(" | ")
+      variationId: data.variations[0].id,
+      subAttributes: data.variations[0].attributes
+        ? data.variations[0].attributes
+            .flatMap((attr) => attr.subAttributes)
+            .map((sub) => sub.subAttributeName)
+            .join(" | ")
         : null,
       name: data.name,
       image: data.images.cover.secureUrl,

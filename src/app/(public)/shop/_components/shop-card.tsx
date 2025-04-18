@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { Button } from "@/components/ui/button";
-import useCart from "@/hooks/use-cart";
+import { useCart } from "@/hooks/use-cart";
 import { Product } from "@/types";
 import { ShoppingCart } from "lucide-react";
 import Image from "next/image";

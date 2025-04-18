@@ -1,5 +1,6 @@
 "use client";
 
+import Quantity from "@/components/shop/quantity";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -10,12 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import useCart from "@/hooks/use-cart";
+import { useCart } from "@/hooks/use-cart";
 import { formatterBr } from "@/lib/utils";
 import { Trash } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import Quantity from "../../../../components/cart/quantity";
 
 export default function CartTable() {
   const cart = useCart();

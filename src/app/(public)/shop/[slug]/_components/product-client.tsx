@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { useCurrentUser } from "@/app/(auth)/hooks/use-current-user";
 import { CarouselApi } from "@/components/io-carousel";
 import Quantity from "@/components/shop/quantity";
-import useCart from "@/hooks/use-cart";
+import { useCart } from "@/hooks/use-cart";
 import { CartProduct, Product, ProductVariation } from "@/types";
 import { ProductAttributes } from "./product-attributes";
 import { ProductDetailsSection } from "./product-details-section";
