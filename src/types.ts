@@ -36,7 +36,7 @@ export type Product = {
 
   description: string | null;
   content: string | null;
-  attributes: ProductAttributeAssignment[];
+  attributes: ProductAttribute[]; // Alterado de ProductAttributeAssignment[] para ProductAttribute[]
 
   images: ProductImages;
   variations: ProductVariation[];
@@ -52,7 +52,7 @@ export type Product = {
 export type ProductVariation = {
   id: string;
   price: number;
-  salePrice: number;
+  salePrice: number | null;
   quantity: number;
   attributes: ProductAttributeAssignment[];
   imageRef: {
@@ -65,6 +65,9 @@ export type ProductAttributeAssignment = {
   id: string;
   attributeId: string;
   attributeName: string;
+  type: string;
+  productPageType: "DEFAULT" | "COLOR" | "SELECT" | "CHECKBOX" | "RATIO";
+  filterPageType: "DEFAULT" | "COLOR" | "SELECT" | "CHECKBOX" | "RATIO";
   subAttributes: ProductSubAttributeAssignment[];
 };
 
@@ -72,6 +75,29 @@ export type ProductSubAttributeAssignment = {
   id: string;
   subAttributeId: string;
   subAttributeName: string;
+  value?: string; // Adicionado campo opcional value
+};
+
+export type ProductAttribute = {
+  id: string;
+  name: string;
+  slug: string;
+  type: string;
+  productSubAttributes: ProductSubAttribute[];
+  productPageType: "DEFAULT" | "COLOR" | "SELECT" | "CHECKBOX" | "RATIO";
+  filterPageType: "DEFAULT" | "COLOR" | "SELECT" | "CHECKBOX" | "RATIO";
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type ProductSubAttribute = {
+  id: string;
+  slug: string;
+  name: string;
+  value: string;
+  productAttributeId: string;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 export type ProductAttributeCombination = {
@@ -132,31 +158,6 @@ export type ProductSubcategory = {
   createdAt: Date;
   updatedAt: Date;
   productCategoryId: string;
-};
-
-export type ProductAttribute = {
-  id: string;
-  name: string;
-  slug: string;
-  type: string;
-  productSubAttributes: ProductSubAttribute[];
-
-  productPageType: "DEFAULT" | "COLOR" | "SELECT" | "CHECKBOX" | "RATIO";
-  filterPageType: "DEFAULT" | "COLOR" | "SELECT" | "CHECKBOX" | "RATIO";
-
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-export type ProductSubAttribute = {
-  id: string;
-  slug: string;
-  name: string;
-  value: string;
-  productAttributeId: string;
-
-  createdAt: Date;
-  updatedAt: Date;
 };
 
 export type Shipping = {

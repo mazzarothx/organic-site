@@ -1,167 +1,100 @@
-// src/hooks/use-product.ts
-import { Product, ProductAttribute } from "@/types";
-import { useMemo } from "react";
+import getAttributes from "@/actions/get-attributes";
+import getProducts from "@/actions/get-products";
+import getSubAttributes from "@/actions/get-sub-attributes";
+import {
+  Product,
+  ProductAttribute,
+  ProductAttributeAssignment,
+  ProductSubAttribute,
+  ProductSubAttributeAssignment,
+} from "@/types";
 
-interface UseProductOptions {
-  forCart?: boolean;
-  forCard?: boolean;
-  forProductPage?: boolean;
-}
+export const getMappedProducts = async () => {
+  try {
+    const [products, attributes, subAttributes] = await Promise.all([
+      getProducts(),
+      getAttributes(),
+      getSubAttributes(),
+    ]);
 
-export const useProduct = (
-  product: Product,
-  attributes: ProductAttribute[] = [],
-  options: UseProductOptions = {},
-) => {
-  // Calcula preços mínimo e máximo
-  const { minPrice, maxPrice } = useMemo(() => {
-    if (!product.variations || product.variations.length === 0) {
-      return { minPrice: 0, maxPrice: 0 };
-    }
-
-    let minPrice =
-      product.variations[0].salePrice || product.variations[0].price;
-    let maxPrice =
-      product.variations[0].salePrice || product.variations[0].price;
-
-    product.variations.forEach((variation) => {
-      const currentPrice = variation.salePrice || variation.price;
-      if (currentPrice < minPrice) minPrice = currentPrice;
-      if (currentPrice > maxPrice) maxPrice = currentPrice;
-    });
-
-    return { minPrice, maxPrice };
-  }, [product.variations]);
-
-  // Agrupa subatributos por atributo (útil para cards)
-  const groupedSubAttributes = useMemo(() => {
-    const grouped: { [key: string]: { name: string; value: string }[] } = {};
-
-    product.variations.forEach((variation) => {
-      variation.attributes.forEach((attribute) => {
-        const foundAttribute = attributes.find(
-          (attr) => attr.id === attribute.attributeId,
-        );
-
-        if (foundAttribute) {
-          if (!grouped[foundAttribute.name]) {
-            grouped[foundAttribute.name] = [];
-          }
-
-          attribute.subAttributes.forEach((subAttribute) => {
-            const foundSubAttr = foundAttribute.productSubAttributes.find(
-              (sub) => sub.id === subAttribute.subAttributeId,
-            );
-
-            if (
-              foundSubAttr &&
-              !grouped[foundAttribute.name].some(
-                (sub) =>
-                  sub.name === foundSubAttr.name &&
-                  sub.value === foundSubAttr.value,
-              )
-            ) {
-              grouped[foundAttribute.name].push({
-                name: foundSubAttr.name,
-                value: foundSubAttr.value,
-              });
-            }
-          });
+    const subAttributesByAttributeId = subAttributes.reduce(
+      (acc, subAttr) => {
+        if (!acc[subAttr.productAttributeId]) {
+          acc[subAttr.productAttributeId] = [];
         }
-      });
-    });
+        acc[subAttr.productAttributeId].push(subAttr);
+        return acc;
+      },
+      {} as Record<string, ProductSubAttribute[]>,
+    );
 
-    return grouped;
-  }, [product.variations, attributes]);
+    const mappedProducts = products.map((product) => {
+      // Mapear variações
+      const variations = product.variations.map((variation) => {
+        const mappedAttributes = variation.attributes.map((attr) => {
+          const attribute = attributes.find((a) => a.id === attr.attributeId);
 
-  // Versão para cards
-  const cardProduct = useMemo(() => {
-    if (!options.forCard) return null;
-
-    return {
-      id: product.id,
-      slug: product.slug,
-      name: product.name,
-      image: product.images.cover.secureUrl,
-      minPrice,
-      maxPrice,
-      groupedSubAttributes,
-      isOnSale: minPrice !== maxPrice,
-      featured: product.featured,
-      labels: product.properties.label,
-      minQuantity: product.properties.minQuantity,
-      category: product.category,
-      subcategory: product.subcategory,
-    };
-  }, [product, minPrice, maxPrice, groupedSubAttributes, options.forCard]);
-
-  // Versão para página de produto
-  const productPageProduct = useMemo(() => {
-    if (!options.forProductPage) return null;
-
-    return {
-      ...product,
-      variations: product.variations.map((variation) => ({
-        ...variation,
-        attributes: variation.attributes.map((attr) => {
-          const foundAttribute = attributes.find(
-            (a) => a.id === attr.attributeId,
-          );
-          return {
-            ...attr,
-            attributeName: foundAttribute?.name || attr.attributeName,
-            subAttributes: attr.subAttributes.map((subAttr) => {
-              const foundSubAttr = foundAttribute?.productSubAttributes.find(
-                (s) => s.id === subAttr.subAttributeId,
+          const mappedSubAttributes: ProductSubAttributeAssignment[] =
+            attr.subAttributes.map((subAttr) => {
+              const fullSubAttr = subAttributes.find(
+                (sa) => sa.id === subAttr.subAttributeId,
               );
               return {
-                ...subAttr,
-                subAttributeName:
-                  foundSubAttr?.name || subAttr.subAttributeName,
-                value: foundSubAttr?.value,
+                id: subAttr.id,
+                subAttributeId: subAttr.subAttributeId,
+                subAttributeName: subAttr.subAttributeName,
+                value: fullSubAttr?.value || "",
               };
-            }),
-          };
-        }),
-      })),
-      minPrice,
-      maxPrice,
-    };
-  }, [product, attributes, minPrice, maxPrice, options.forProductPage]);
+            });
 
-  // Versão para carrinho
-  const cartProduct = useMemo(() => {
-    if (!options.forCart) return null;
+          return {
+            id: attr.id,
+            attributeId: attr.attributeId,
+            attributeName: attr.attributeName,
+            type: attribute?.type || "DEFAULT",
+            productPageType: attribute?.productPageType || "DEFAULT",
+            filterPageType: attribute?.filterPageType || "DEFAULT",
+            subAttributes: mappedSubAttributes,
+          } as ProductAttributeAssignment;
+        });
 
-    // Assume a primeira variação como padrão para o carrinho
-    // Na prática, você deve permitir selecionar a variação
-    const defaultVariation = product.variations[0];
+        return {
+          ...variation,
+          attributes: mappedAttributes,
+        };
+      });
 
-    return {
-      id: product.id,
-      slug: product.slug,
-      productId: product.id,
-      variationId: defaultVariation.id,
-      subAttributes: defaultVariation.attributes
-        .flatMap((attr) =>
-          attr.subAttributes.map((subAttr) => subAttr.subAttributeName),
+      // Mapear atributos do produto
+      const productAttributes = attributes
+        .filter((attr) =>
+          product.variations.some((v) =>
+            v.attributes.some((a) => a.attributeId === attr.id),
+          ),
         )
-        .join(" | "),
-      name: product.name,
-      image: product.images.cover.secureUrl,
-      price: defaultVariation.salePrice || defaultVariation.price,
-      quantity: product.properties.minQuantity,
-      availableQuantity: defaultVariation.quantity,
-      minQuantity: product.properties.minQuantity,
-      multiQuantity: product.properties.multiQuantity,
-    };
-  }, [product, options.forCart]);
+        .map(
+          (attr): ProductAttribute => ({
+            id: attr.id,
+            name: attr.name,
+            slug: attr.slug,
+            type: attr.type,
+            productPageType: attr.productPageType,
+            filterPageType: attr.filterPageType,
+            productSubAttributes: subAttributesByAttributeId[attr.id] || [],
+            createdAt: attr.createdAt,
+            updatedAt: attr.updatedAt,
+          }),
+        );
 
-  return {
-    cardProduct,
-    productPageProduct,
-    cartProduct,
-    groupedSubAttributes,
-    priceRange: { minPrice, maxPrice },
-  };
+      return {
+        ...product,
+        variations,
+        attributes: productAttributes,
+      } as Product;
+    });
+
+    return mappedProducts;
+  } catch (error) {
+    console.error("Error mapping products:", error);
+    throw error;
+  }
 };

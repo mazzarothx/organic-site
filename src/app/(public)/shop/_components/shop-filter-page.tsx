@@ -1,31 +1,14 @@
-import { Product, ProductAttribute, ProductCategory } from "@/types/product";
+import getAttributes from "@/actions/get-attributes";
+import getCategories from "@/actions/get-categories";
+import { getMappedProducts } from "@/hooks/use-products";
 import ProductFilterClient from "./shop-filter-client";
 
-const fetchShopData = async () => {
-  try {
-    const [productsRes, attributesRes, categoriesRes] = await Promise.all([
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/shop/products`),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/shop/attributes`),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/shop/categories`),
-    ]);
-
-    if (!productsRes.ok || !attributesRes.ok || !categoriesRes.ok) {
-      throw new Error("Failed to fetch shop data");
-    }
-
-    const products: Product[] = await productsRes.json();
-    const attributes: ProductAttribute[] = await attributesRes.json();
-    const categories: ProductCategory[] = await categoriesRes.json();
-
-    return { products, attributes, categories };
-  } catch (error) {
-    console.error("Error fetching shop data:", error);
-    return { products: [], attributes: [], categories: [] };
-  }
-};
-
 const ProductFilterPage = async () => {
-  const { products, attributes, categories } = await fetchShopData();
+  const [products, attributes, categories] = await Promise.all([
+    getMappedProducts(),
+    getAttributes(),
+    getCategories(),
+  ]);
 
   return (
     <div className="bg-background min-h-screen">

@@ -1,42 +1,19 @@
-// src/app/(public)/shop/products/page.tsx (Server Component)
-import { db } from "@/app/(auth)/lib/db";
-import {
-  Product,
-  ProductImages,
-  ProductProperties,
-  ProductVariation,
-  Shipping,
-} from "@/types";
-import { ProductCategory } from "@prisma/client";
+import getAttributes from "@/actions/get-attributes";
+import getCategories from "@/actions/get-categories";
+import { getMappedProducts } from "@/hooks/use-products";
 import ProductFilterClient from "./_components/shop-filter-client";
 
-const ProductFilterPage = async () => {
-  const products: Product[] = (await db.product.findMany({})).map(
-    (product) => ({
-      ...product,
-      variations: product.variations as ProductVariation[],
-      images: product.images as ProductImages,
-      shipping: product.shipping as Shipping,
-      properties: product.properties as ProductProperties,
-      description: product.description ?? "",
-    }),
-  );
-
-  const attributes = await db.productAttribute.findMany({
-    include: {
-      productSubAttributes: true,
-    },
-  });
-
-  const categories: ProductCategory[] = (
-    await db.productCategory.findMany({})
-  ).map((category) => ({
-    ...category,
-    imageUrl: category.imageUrl ?? null,
-  }));
+export default async function ShopPage() {
+  const [products, attributes, categories] = await Promise.all([
+    getMappedProducts(),
+    getAttributes(),
+    getCategories(),
+  ]);
 
   return (
-    <div>
+    <div className="container mx-auto py-8">
+      <h1 className="mb-8 text-3xl font-bold">Nossos Produtos</h1>
+
       <ProductFilterClient
         initialProducts={products}
         attributes={attributes}
@@ -44,6 +21,4 @@ const ProductFilterPage = async () => {
       />
     </div>
   );
-};
-
-export default ProductFilterPage;
+}

@@ -15,7 +15,7 @@ import { formatterBr } from "@/lib/utils";
 import { Trash } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import Quantity from "../../../../../components/cart/quantity";
+import Quantity from "../../../../components/cart/quantity";
 
 export default function CartTable() {
   const cart = useCart();

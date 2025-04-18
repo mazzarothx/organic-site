@@ -17,7 +17,7 @@ import {
 import { Product, ProductAttribute, ProductCategory } from "@/types";
 import { RotateCcw } from "lucide-react";
 import { useMemo, useState } from "react";
-import ProductCard from "./shop-card";
+import ShopCard from "./shop-card";
 
 interface ProductFilterClientProps {
   categories: ProductCategory[];
@@ -34,10 +34,9 @@ const ProductFilterClient: React.FC<ProductFilterClientProps> = ({
   const [selectedSubAttributes, setSelectedSubAttributes] = useState<
     { attributeId: string; subAttributeId: string }[]
   >([]);
-  const [products] = useState<Product[]>(initialProducts);
 
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+    return initialProducts.filter((product) => {
       // Filter by category
       if (selectedCategory && product.category?.id !== selectedCategory) {
         return false;
@@ -62,7 +61,7 @@ const ProductFilterClient: React.FC<ProductFilterClientProps> = ({
 
       return true;
     });
-  }, [products, selectedCategory, selectedSubAttributes]);
+  }, [initialProducts, selectedCategory, selectedSubAttributes]);
 
   const resetFilters = () => {
     setSelectedCategory(null);
@@ -87,7 +86,10 @@ const ProductFilterClient: React.FC<ProductFilterClientProps> = ({
         }
         return [...prev, { attributeId, subAttributeId }];
       } else {
-        return [{ attributeId, subAttributeId }];
+        // For single select, replace any existing selection for this attribute
+        return prev
+          .filter((item) => item.attributeId !== attributeId)
+          .concat([{ attributeId, subAttributeId }]);
       }
     });
   };
@@ -141,7 +143,7 @@ const ProductFilterClient: React.FC<ProductFilterClientProps> = ({
                   }
                   className="text-primary focus:ring-primary h-4 w-4 rounded border-gray-300"
                 />
-                <span>{sub.value}</span>
+                <span>{sub.name}</span>
               </label>
             ))}
           </div>
@@ -164,7 +166,7 @@ const ProductFilterClient: React.FC<ProductFilterClientProps> = ({
             <SelectContent>
               {subAttributes.map((sub) => (
                 <SelectItem key={sub.id} value={sub.id}>
-                  {sub.value}
+                  {sub.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -189,7 +191,7 @@ const ProductFilterClient: React.FC<ProductFilterClientProps> = ({
                   value={sub.id}
                   id={`${attribute.id}-${sub.id}`}
                 />
-                <label htmlFor={`${attribute.id}-${sub.id}`}>{sub.value}</label>
+                <label htmlFor={`${attribute.id}-${sub.id}`}>{sub.name}</label>
               </div>
             ))}
           </RadioGroup>
@@ -261,11 +263,7 @@ const ProductFilterClient: React.FC<ProductFilterClientProps> = ({
           {filteredProducts.length > 0 ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {filteredProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  attributes={attributes}
-                />
+                <ShopCard key={product.id} product={product} />
               ))}
             </div>
           ) : (
