@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { useCurrentUser } from "@/app/(auth)/hooks/use-current-user";
 import { CarouselApi } from "@/components/io-carousel";
 import Quantity from "@/components/shop/quantity";
-import { useCart } from "@/hooks/use-cart";
+import { generateCartItemId, useCart } from "@/hooks/use-cart";
 import { CartProduct, Product, ProductVariation } from "@/types";
 import { ProductAttributes } from "./product-attributes";
 import { ProductDetailsSection } from "./product-details-section";
@@ -138,13 +138,17 @@ const ProductPageClient = ({ initialData }: ProductPageClientProps) => {
   // Cart functions
   const handleAddToCart = () => {
     if (!initialData || !currentVariation) {
-      toast.error("Por favor, selecione uma variação válida do produto.");
+      toast.error("Selecione uma variação válida");
       return;
     }
 
     const cartProduct: CartProduct = {
-      id: currentVariation.id,
-      slug: initialData.slug,
+      id: generateCartItemId(
+        initialData.id,
+        currentVariation.id,
+        currentVariation.attributes,
+      ),
+      slug: initialData.slug, // Adicione essa linha
       productId: initialData.id,
       variationId: currentVariation.id,
       subAttributes: currentVariation.attributes
